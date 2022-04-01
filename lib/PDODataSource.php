@@ -18,26 +18,44 @@ class PDODataSource implements DataSourceInterface
     private $pdo;
 
     /**
+     * @var \Redis
+     */
+    private $redis;
+    /**
      * @var array
      */
     private $words;
 
     /**
+     * @var string
+     */
+    private $table;
+
+    /**
+     * @var string
+     */
+    private $field;
+
+    /**
      * PDODataSource constructor.
      * @param array $config
      */
-    public function __construct($config = [])
+    public function __construct($pdo, $redis, $table, $field, $debug = false)
     {
-        $this->config = $config;
-        try {
-            $this->pdo = new \PDO($this->config['dsn'], $this->config['username'], $this->config['password']);
-            $query = "SELECT `{$this->config['field']}` FROM `{$this->config['table']}`";
+        $this->pdo = $pdo;
+        $this->redis = $redis;
+        $this->table = $table;
+        $this->field = $field;
+        $this->debug = $debug;
+
+        if (!$this->words = $this->getWordsFromRedis()) {
+            $query = "SELECT `{$this->field}` FROM `{$this->table}`";
             $stmt = $this->pdo->query($query);
             while ($row = $stmt->fetch()) {
-                $this->words[] = $row[$this->config['field']];
+                $this->words[] = $row[$this->field];
             }
-        } catch (\Exception $e) {
-            throw new RuntimeException(sprintf('Loading PDO error:%s', iconv('gbk', 'utf-8', $e->getMessage())));
+            $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
+            echo('get from mysql');
         }
     }
 
@@ -55,12 +73,13 @@ class PDODataSource implements DataSourceInterface
     public function addWord(string $word)
     {
         $word = $this->filterWord($word);
-        $stmt = $this->pdo->prepare("SELECT `{$this->config['field']}` FROM `{$this->config['table']}` WHERE `{$this->config['field']}` = :word");
+        $stmt = $this->pdo->prepare("SELECT `{$this->field}` FROM `{$this->table}` WHERE `{$this->field}` = :word");
         $stmt->execute(['word' => $word]);
         $search = $stmt->fetch(\PDO::FETCH_COLUMN);
         if ($word && $search === false) {
-            if ($this->pdo->prepare("INSERT INTO {$this->config['table']} ({$this->config['field']}) VALUES (?)")->execute([$word])) {
+            if ($this->pdo->prepare("INSERT INTO {$this->table} ({$this->field}) VALUES (?)")->execute([$word])) {
                 $this->words[] = $word;
+                $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
             }
         }
     }
@@ -71,15 +90,16 @@ class PDODataSource implements DataSourceInterface
     public function deleteWord(string $word)
     {
         $word = $this->filterWord($word);
-        $stmt = $this->pdo->prepare("SELECT `{$this->config['field']}` FROM `{$this->config['table']}` WHERE `{$this->config['field']}` = :word");
+        $stmt = $this->pdo->prepare("SELECT `{$this->field}` FROM `{$this->table}` WHERE `{$this->field}` = :word");
         $stmt->execute(['word' => $word]);
         $search = $stmt->fetch(\PDO::FETCH_COLUMN);
         if ($word && $search !== false) {
-            $stmt = $this->pdo->prepare("DELETE FROM {$this->config['table']} WHERE {$this->config['field']} = ? LIMIT 1");
+            $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->field} = ? LIMIT 1");
             $stmt->execute([$word]);
             if ($stmt->rowCount() === 1) {
                 if (($index = array_search($word, $this->words)) !== false) {
                     unset($this->words[$index]);
+                    $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
                 }
             }
         }
@@ -95,4 +115,13 @@ class PDODataSource implements DataSourceInterface
         return strtolower(str_replace([' ', '  '], '', $word));
     }
 
+    private function getWordsFromRedis()
+    {
+        if (!$this->debug) {
+            echo 'get from real redis';
+            return json_decode($this->redis->get('badwordsKey'), true);
+        }
+        echo 'get from dummy redis';
+        return [];
+    }
 }
