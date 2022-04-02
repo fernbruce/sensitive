@@ -1,8 +1,6 @@
 <?php
 
-
 namespace Refinelib\Sensitive;
-
 
 use RuntimeException;
 
@@ -40,22 +38,18 @@ class PDODataSource implements DataSourceInterface
      * PDODataSource constructor.
      * @param array $config
      */
-    public function __construct($pdo, $redis, $table, $field, $debug = false)
+    public function __construct($pdo, $redis, $table, $field)
     {
         $this->pdo = $pdo;
         $this->redis = $redis;
         $this->table = $table;
         $this->field = $field;
-        $this->debug = $debug;
 
         if (!$this->words = $this->getWordsFromRedis()) {
             $query = "SELECT `{$this->field}` FROM `{$this->table}`";
             $stmt = $this->pdo->query($query);
-            while ($row = $stmt->fetch()) {
-                $this->words[] = $row[$this->field];
-            }
-            $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
-            echo('get from mysql');
+            $this->words = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            $this->saveWordsToRedis();
         }
     }
 
@@ -73,13 +67,15 @@ class PDODataSource implements DataSourceInterface
     public function addWord(string $word)
     {
         $word = $this->filterWord($word);
-        $stmt = $this->pdo->prepare("SELECT `{$this->field}` FROM `{$this->table}` WHERE `{$this->field}` = :word");
-        $stmt->execute(['word' => $word]);
-        $search = $stmt->fetch(\PDO::FETCH_COLUMN);
-        if ($word && $search === false) {
-            if ($this->pdo->prepare("INSERT INTO {$this->table} ({$this->field}) VALUES (?)")->execute([$word])) {
+        if ($word && (array_search($word, $this->words) === false)) {
+            try {
+                $result = $this->pdo->prepare("INSERT INTO {$this->table} ({$this->field}) VALUES (?)")->execute([$word]);
+                if (!$result) {
+                    throw new \PDOException('数据库异常，写入失败');
+                }
                 $this->words[] = $word;
-                $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
+                $this->saveWordsToRedis();
+            } catch (\PDOException $e) {
             }
         }
     }
@@ -90,20 +86,18 @@ class PDODataSource implements DataSourceInterface
     public function deleteWord(string $word)
     {
         $word = $this->filterWord($word);
-        $stmt = $this->pdo->prepare("SELECT `{$this->field}` FROM `{$this->table}` WHERE `{$this->field}` = :word");
-        $stmt->execute(['word' => $word]);
-        $search = $stmt->fetch(\PDO::FETCH_COLUMN);
-        if ($word && $search !== false) {
-            $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->field} = ? LIMIT 1");
-            $stmt->execute([$word]);
+        if ($word && (($index = array_search($word, $this->words)) !== false)) {
+            try {
+                $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->field} = ? LIMIT 1");
+                $stmt->execute([$word]);
+                if (!$stmt->rowCount()) {
+                    throw new \PDOException('数据库异常，删除失败');
+                }
+                unset($this->words[$index]);
+                $this->saveWordsToRedis();
+            } catch (\PDOException $e) {
+            }
         }
-
-        if ($word && ($index = array_search($word, $this->words)) !== false) {
-            unset($this->words[$index]);
-            $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
-        }
-
-
     }
 
     /**
@@ -115,11 +109,16 @@ class PDODataSource implements DataSourceInterface
         return strtolower(str_replace([' ', '  '], '', $word));
     }
 
+    private function saveWordsToRedis()
+    {
+        $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * @return array
+     */
     private function getWordsFromRedis()
     {
-        if (!$this->debug) {
-            return json_decode($this->redis->get('badwordsKey'), true);
-        }
-        return [];
+        return json_decode($this->redis->get('badwordsKey'), true) ?: [];
     }
 }

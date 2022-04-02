@@ -4,9 +4,15 @@
     "type": "library",
     "license": "MIT",
     "autoload": {
+        "classmap": [
+            "lib/helper/"
+        ],
         "psr-4": {
             "Refinelib\\Sensitive\\": "lib/"
-        }
+        },
+        "files": [
+            "lib/helper/functions.php"
+        ]
     },
     "authors": [
         {
@@ -14,8 +20,5 @@
             "email": "171006308@qq.com"
         }
     ],
-    "minimum-stability": "dev",
-    "require": {
-        "techone/database": "dev-master"
-    }
+    "minimum-stability": "dev"
 }
