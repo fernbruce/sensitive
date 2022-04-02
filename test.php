@@ -15,6 +15,7 @@ $PdoDataSource = new \Refinelib\Sensitive\PDODataSource($pdo, $redis, $table, $f
 //print_r($PdoDataSource->addWord('敏感词3'));
 //print_r($PdoDataSource->addWord('敏感词4'));
 //print_r($PdoDataSource->deleteWord('敏感词1'));
-//print_r($PdoDataSource->deleteWord('敏感词2'));
-print_r($PdoDataSource->deleteWord('敏感词3'));
+print_r($PdoDataSource->deleteWord('敏感词2'));
+//print_r($PdoDataSource->deleteWord('敏感词3'));
 print_r($PdoDataSource->getWords());
+

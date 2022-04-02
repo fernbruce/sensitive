@@ -96,13 +96,13 @@ class PDODataSource implements DataSourceInterface
         if ($word && $search !== false) {
             $stmt = $this->pdo->prepare("DELETE FROM {$this->table} WHERE {$this->field} = ? LIMIT 1");
             $stmt->execute([$word]);
-            if ($stmt->rowCount() === 1) {
-                if (($index = array_search($word, $this->words)) !== false) {
-                    unset($this->words[$index]);
-                    $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
-                }
-            }
         }
+
+        if ($word && ($index = array_search($word, $this->words)) !== false) {
+            unset($this->words[$index]);
+            $this->redis->set('badwordsKey', json_encode($this->words, JSON_UNESCAPED_UNICODE));
+        }
+
 
     }
 
@@ -118,10 +118,8 @@ class PDODataSource implements DataSourceInterface
     private function getWordsFromRedis()
     {
         if (!$this->debug) {
-            echo 'get from real redis';
             return json_decode($this->redis->get('badwordsKey'), true);
         }
-        echo 'get from dummy redis';
         return [];
     }
 }
