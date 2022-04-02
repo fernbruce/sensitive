@@ -77,11 +77,9 @@ class PDODataSource implements DataSourceInterface
         $word = $this->filterWord($word);
         $words = $this->getWords();
         if ($word && (array_search($word, $words) === false)) {
-            try {
-                $words[] = $word;
-                $this->saveWordsToDb($words);
+            $words[] = $word;
+            if ($this->saveWordsToDb($words)) {
                 $this->saveWordsToRedis($words);
-            } catch (\PDOException $e) {
             }
         }
     }
@@ -94,11 +92,9 @@ class PDODataSource implements DataSourceInterface
         $word = $this->filterWord($word);
         $words = $this->getWords();
         if ($word && (($index = array_search($word, $words)) !== false)) {
-            try {
-                unset($words[$index]);
-                $this->saveWordsToDb($words);
+            unset($words[$index]);
+            if ($this->saveWordsToDb($words)) {
                 $this->saveWordsToRedis($words);
-            } catch (\PDOException $e) {
             }
         }
     }
@@ -122,12 +118,10 @@ class PDODataSource implements DataSourceInterface
 
     /**
      * @param $words
+     * @return bool
      */
     private function saveWordsToDb($words)
     {
-        $result = $this->pdo->prepare("REPLACE INTO {$this->table} (`{$this->key}`,`{$this->field}`) VALUES ('{$this->key}',?)")->execute([json_encode($words, JSON_UNESCAPED_UNICODE)]);
-        if (!$result) {
-            throw new \PDOException('数据库异常，写入失败');
-        }
+        return $this->pdo->prepare("REPLACE INTO {$this->table} (`{$this->key}`,`{$this->field}`) VALUES ('{$this->key}',?)")->execute([json_encode($words, JSON_UNESCAPED_UNICODE)]);
     }
 }
