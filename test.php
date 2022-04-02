@@ -7,14 +7,14 @@ try {
     $table = 'qs_badwords';
     $field = 'badwords';
     $PdoDataSource = new \Refinelib\Sensitive\PDODataSource($pdo, $redis, $table, $field);
-    print_r($PdoDataSource->addWord('敏感词1'));
+//    print_r($PdoDataSource->addWord('敏感词1'));
     print_r($PdoDataSource->addWord('敏感词2'));
     print_r($PdoDataSource->addWord('敏感词3'));
-    print_r($PdoDataSource->addWord('敏感词4'));
+//    print_r($PdoDataSource->addWord('敏感词4'));
 //    print_r($PdoDataSource->deleteWord('敏感词1'));
 //    print_r($PdoDataSource->deleteWord('敏感词2'));
-//print_r($PdoDataSource->deleteWord('敏感词3'));
-//print_r($PdoDataSource->deleteWord('敏感词4'));
+//    print_r($PdoDataSource->deleteWord('敏感词3'));
+//    print_r($PdoDataSource->deleteWord('敏感词4'));
     print_r($PdoDataSource->getWords());
 
 } catch (\Exception $e) {

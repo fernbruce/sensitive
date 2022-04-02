@@ -19,10 +19,6 @@ class PDODataSource implements DataSourceInterface
      * @var \Redis
      */
     private $redis;
-    /**
-     * @var array
-     */
-    private $words;
 
     /**
      * @var string
@@ -41,30 +37,19 @@ class PDODataSource implements DataSourceInterface
 
     /**
      * PDODataSource constructor.
-     * @param $pdo
-     * @param $redis
-     * @param $table
-     * @param $field
+     * @param \PDO $pdo
+     * @param \Redis $redis
+     * @param string $table
+     * @param string $field
+     * @param string $key
      */
-    public function __construct($pdo, $redis, $table, $field, $key = 'badwordsKey')
+    public function __construct(\PDO $pdo, \Redis $redis, string $table, string $field, string $key = 'badwordsKey')
     {
         $this->pdo = $pdo;
         $this->redis = $redis;
         $this->table = $table;
         $this->field = $field;
         $this->key = $key;
-
-        if (!$this->words = $this->getWordsFromRedis()) {
-            $query = "SELECT `{$this->field}` FROM `{$this->table}`";
-            $stmt = $this->pdo->query($query);
-            $words = $stmt->fetch(\PDO::FETCH_COLUMN);
-            if (empty($words)) {
-                $this->words = [];
-            } else {
-                $this->words = json_decode($words, true);
-            }
-            $this->saveWordsToRedis();
-        }
     }
 
     /**
@@ -72,7 +57,16 @@ class PDODataSource implements DataSourceInterface
      */
     public function getWords(): array
     {
-        return $this->words ?: [];
+        if (!$words = json_decode($this->redis->get($this->key), true) ?: []) {
+            $query = "SELECT `{$this->field}` FROM `{$this->table}`";
+            $stmt = $this->pdo->query($query);
+            $words = $stmt->fetch(\PDO::FETCH_COLUMN) ?: [];
+            if (!empty($words)) {
+                $words = json_decode($words, true);
+            }
+            $this->saveWordsToRedis($words);
+        }
+        return $words;
     }
 
     /**
@@ -81,17 +75,13 @@ class PDODataSource implements DataSourceInterface
     public function addWord(string $word)
     {
         $word = $this->filterWord($word);
-        if ($word && (array_search($word, $this->words) === false)) {
+        $words = $this->getWords();
+        if ($word && (array_search($word, $words) === false)) {
             try {
-                $this->words[] = $word;
-                $result = $this->pdo->prepare("REPLACE INTO {$this->table} (`{$this->key}`,{$this->field}) VALUES ('{$this->key}',?)")->execute([json_encode($this->words, JSON_UNESCAPED_UNICODE)]);
-                if (!$result) {
-                    throw new \PDOException('数据库异常，写入失败');
-                }
-                $this->saveWordsToRedis();
+                $words[] = $word;
+                $this->saveWordsToDb($words);
+                $this->saveWordsToRedis($words);
             } catch (\PDOException $e) {
-                $index = array_search($word, $this->words);
-                unset($this->words[$index]);
             }
         }
     }
@@ -102,16 +92,13 @@ class PDODataSource implements DataSourceInterface
     public function deleteWord(string $word)
     {
         $word = $this->filterWord($word);
-        if ($word && (($index = array_search($word, $this->words)) !== false)) {
+        $words = $this->getWords();
+        if ($word && (($index = array_search($word, $words)) !== false)) {
             try {
-                unset($this->words[$index]);
-                $result = $this->pdo->prepare("REPLACE INTO {$this->table} (`{$this->key}`,`{$this->field}`) VALUES ('{$this->key}',?)")->execute([json_encode($this->words, JSON_UNESCAPED_UNICODE)]);
-                if (!$result) {
-                    throw new \PDOException('数据库异常，删除失败');
-                }
-                $this->saveWordsToRedis();
+                unset($words[$index]);
+                $this->saveWordsToDb($words);
+                $this->saveWordsToRedis($words);
             } catch (\PDOException $e) {
-                $this->words[$index] = $word;
             }
         }
     }
@@ -125,16 +112,22 @@ class PDODataSource implements DataSourceInterface
         return strtolower(str_replace([' ', '  '], '', $word));
     }
 
-    private function saveWordsToRedis()
+    /**
+     * @param $words
+     */
+    private function saveWordsToRedis($words)
     {
-        $this->redis->set($this->key, json_encode($this->words, JSON_UNESCAPED_UNICODE));
+        $this->redis->set($this->key, json_encode($words, JSON_UNESCAPED_UNICODE));
     }
 
     /**
-     * @return array
+     * @param $words
      */
-    private function getWordsFromRedis()
+    private function saveWordsToDb($words)
     {
-        return json_decode($this->redis->get($this->key), true) ?: [];
+        $result = $this->pdo->prepare("REPLACE INTO {$this->table} (`{$this->key}`,`{$this->field}`) VALUES ('{$this->key}',?)")->execute([json_encode($words, JSON_UNESCAPED_UNICODE)]);
+        if (!$result) {
+            throw new \PDOException('数据库异常，写入失败');
+        }
     }
 }
