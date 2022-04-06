@@ -2,6 +2,7 @@
 
 namespace Refinelib\Sensitive;
 
+use Refinelib\Sensitive\cache\CacheInterface;
 use RuntimeException;
 
 /**
@@ -38,12 +39,12 @@ class PDODataSource implements DataSourceInterface
     /**
      * PDODataSource constructor.
      * @param \PDO $pdo
-     * @param \Redis $redis
+     * @param CacheInterface $redis
      * @param string $table
      * @param string $field
      * @param string $key
      */
-    public function __construct(\PDO $pdo, \Redis $redis, string $table, string $field, string $key = 'badwordsKey')
+    public function __construct(\PDO $pdo, CacheInterface $redis, string $table, string $field, string $key = 'badwordsKey')
     {
         $this->pdo = $pdo;
         $this->redis = $redis;

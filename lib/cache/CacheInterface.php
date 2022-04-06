@@ -2,11 +2,24 @@
 
 namespace Refinelib\Sensitive\cache;
 
-interface CacheInterface extends \ArrayAccess
+/**
+ * Interface CacheInterface
+ * @package Refinelib\Sensitive\cache
+ */
+interface CacheInterface
 {
-
+    /**
+     * @param $key
+     * @return mixed
+     */
     public function get($key);
 
-    public function set($key, $value, $duration = null);
+    /**
+     * @param $key
+     * @param $value
+     * @param int $duration
+     * @return mixed
+     */
+    public function set($key, $value, $duration = 0);
 
 }
