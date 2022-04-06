@@ -25,11 +25,11 @@ class RedisCache implements CacheInterface
 
     /**
      * @param $key
-     * @return false|mixed|string
+     * @return string
      */
     public function get($key)
     {
-        return $this->connection->get($key);
+        return $this->connection->get($key) ?: '';
     }
 
     /**

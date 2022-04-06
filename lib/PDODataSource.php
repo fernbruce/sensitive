@@ -58,7 +58,7 @@ class PDODataSource implements DataSourceInterface
      */
     public function getWords(): array
     {
-        if (!$words = json_decode($this->redis->get($this->key), true) ?: []) {
+        if (!$words = json_decode($this->redis->get($this->key) ?: '', true) ?: []) {
             $query = "SELECT `{$this->field}` FROM `{$this->table}`";
             $stmt = $this->pdo->query($query);
             $words = $stmt->fetch(\PDO::FETCH_COLUMN) ?: [];

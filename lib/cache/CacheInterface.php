@@ -10,7 +10,7 @@ interface CacheInterface
 {
     /**
      * @param $key
-     * @return mixed
+     * @return string|bool
      */
     public function get($key);
 
@@ -18,7 +18,7 @@ interface CacheInterface
      * @param $key
      * @param $value
      * @param int $duration
-     * @return mixed
+     * @return bool
      */
     public function set($key, $value, $duration = 0);
 

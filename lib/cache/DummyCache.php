@@ -11,7 +11,7 @@ class DummyCache implements CacheInterface
 {
     /**
      * @param $key
-     * @return false
+     * @return bool
      */
     public function get($key)
     {
